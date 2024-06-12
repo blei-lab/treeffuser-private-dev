@@ -14,6 +14,7 @@ from jaxtyping import Int
 from sklearn.model_selection import train_test_split
 
 from treeffuser.sde import DiffusionSDE
+from treeffuser._score_models._base import Score
 
 ###################################################
 # Helper functions
@@ -142,23 +143,6 @@ def _make_training_data(
 ###################################################
 # Main models
 ###################################################
-
-
-class Score(abc.ABC):
-    @abc.abstractmethod
-    def score(
-        self,
-        X: Float[np.ndarray, "batch x_dim"],
-        y: Float[np.ndarray, "batch y_dim"],
-        t: Int[np.ndarray, "batch"],
-    ):
-
-        pass
-
-    @abc.abstractmethod
-    def fit(self, X: Float[np.ndarray, "batch x_dim"], y: Float[np.ndarray, "batch y_dim"]):
-        pass
-
 
 # lightgbm score
 class LightGBMScore(Score):
