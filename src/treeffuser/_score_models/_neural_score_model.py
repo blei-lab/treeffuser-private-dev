@@ -26,7 +26,7 @@ from torch.utils.data import DataLoader
 ###################################################
 
 class _MLPModule(nn.Module):
-    def __init__(self, num_layers: int, hidden_size: int, input_size: int, output_size: int):
+    def __init__(self, n_layers: int, hidden_size: int, input_size: int, output_size: int):
         """
         Simple MLP model with ReLU activation functions.
         """
@@ -36,7 +36,7 @@ class _MLPModule(nn.Module):
         layers.append(nn.Linear(input_size, hidden_size))
         layers.append(nn.ReLU())
 
-        for _ in range(num_layers - 1):
+        for _ in range(n_layers - 1):
             layers.append(nn.Linear(hidden_size, hidden_size))
             layers.append(nn.ReLU())
 
@@ -69,7 +69,7 @@ def _train_model(
     criterion: Callable,
     optimizer: t.optim.Optimizer,
     patience: int,
-    num_epochs: int,
+    n_epochs: int,
     verbose: int
 ):
     best_loss = np.inf
@@ -77,7 +77,7 @@ def _train_model(
     best_iter = 0
     patience_counter = 0
 
-    for epoch in range(num_epochs):
+    for epoch in range(n_epochs):
         model.train()
         for data, target in train_loader:
             optimizer.zero_grad()
@@ -118,23 +118,23 @@ class _NNModel:
     def __init__(
         self,
         learning_rate: float,
-        num_layers: int,
+        n_layers: int,
         hidden_size: int,
         batch_size: int,
         seed: int,
         verbose: int,
         patience: int,
-        num_epochs: int,
+        n_epochs: int,
     ):
         self._model = None
         self._learning_rate = learning_rate
-        self._num_layers = num_layers
+        self._n_layers = n_layers
         self._hidden_size = hidden_size
         self._batch_size = batch_size
         self._seed = seed
         self._verbose = verbose
         self._patience = patience
-        self._num_epochs = num_epochs
+        self._n_epochs = n_epochs
 
     def fit(
         self,
@@ -152,7 +152,7 @@ class _NNModel:
         x_dim = X.shape[1]
         y_dim = y.shape[1]
 
-        model = _MLPModule(self._num_layers, self._hidden_size, x_dim, y_dim)
+        model = _MLPModule(self._n_layers, self._hidden_size, x_dim, y_dim)
         criterion = nn.MSELoss()
 
         train_loader = DataLoader(list(zip(X, y)), batch_size=self._batch_size, shuffle=True)
@@ -167,15 +167,19 @@ class _NNModel:
             criterion=criterion,
             optimizer=optimizer,
             patience=self._patience,
-            num_epochs=self._num_epochs,
+            n_epochs=self._n_epochs,
             verbose=self._verbose
         )
         model.eval()
+        self._model = model
 
     def predict(self, X: Float[np.ndarray, "batch x_dim"]) -> Float[np.ndarray, "batch y_dim"]:
         self._model.eval()
         with t.no_grad():
-            return self._model(t.tensor(X)).numpy()
+            X = t.tensor(X).float()
+            y =  self._model(X).detach().numpy()
+
+            return y
 
 
 
@@ -210,11 +214,11 @@ class NeuralScoreModel(ScoreModel):
 
     def __init__(
         self,
-        n_repeats: Optional[int] = 10,
-        eval_percent: float = 0.1,
-        n_jobs: Optional[int] = -1,
-        seed: Optional[int] = None,
-        use_separate_models: bool = False,
+        n_repeats: Optional[int],
+        eval_percent: float,
+        n_jobs: Optional[int],
+        use_separate_models: bool,
+        seed: Optional[int]=0,
         **nn_args,
     ) -> None:
         self.n_repeats = n_repeats
@@ -241,7 +245,7 @@ class NeuralScoreModel(ScoreModel):
         predictors = np.concatenate([X, y, t], axis=1)
         _, std = self.sde.get_mean_std_pt_given_y0(y, t)
 
-        for i in range(self.models):
+        for i in range(len(self.models)):
             model = self.models[i]
             score_p = model.predict(predictors)
             scores_p.append(score_p)
@@ -251,10 +255,11 @@ class NeuralScoreModel(ScoreModel):
         # This handles the separate models case
         if scores_p.ndim == 2:
             scores_p = scores_p.T
-        elif scores_p.ndim == 3: # remove first dimension
-            scores_p = scores_p.squeeze(0).T
+        elif scores_p.ndim == 3: # remove last dimension
+            scores_p = scores_p.squeeze(-1).T
 
-        return scores_p / std
+        scores = scores_p / std
+        return scores
 
 
     def fit(
@@ -279,6 +284,9 @@ class NeuralScoreModel(ScoreModel):
             List of indices of categorical features in the input data. If `None`, all features are
             assumed to be continuous.
         """
+        if len(y.shape) != 2:
+            raise ValueError("y should have shape (batch_train, y_dim)")
+
         self.sde = sde
         nn_X_train, nn_X_val, nn_y_train, nn_y_val, cat_idx = make_training_data(
             X=X,
@@ -289,7 +297,6 @@ class NeuralScoreModel(ScoreModel):
             cat_idx=cat_idx,
             seed=self.seed,
         )
-
         if self.use_separate_models:
             self._fit_separate(
                 nn_X_train,
@@ -333,12 +340,13 @@ class NeuralScoreModel(ScoreModel):
             List of indices of categorical features in the input data. If `None`, all features are
             assumed to be continuous.
         """
+        # check y shape (batch_train, y_dim)
 
         models = []
         y_dim = nn_y_train.shape[1]
 
         for i in range(y_dim):
-            model = _NNModel(**self._nn_args)
+            model = _NNModel(**self._nn_args, seed=self.seed)
             model.fit(
                 nn_X_train,
                 nn_y_train[:, i].reshape(-1, 1), #(batch_train, 1)
@@ -374,7 +382,7 @@ class NeuralScoreModel(ScoreModel):
             List of indices of categorical features in the input data. If `None`, all features are
             assumed to be continuous.
         """
-        model = _NNModel(**self._nn_args)
+        model = _NNModel(**self._nn_args, seed=self.seed)
         model.fit(
             nn_X_train,
             nn_y_train,
