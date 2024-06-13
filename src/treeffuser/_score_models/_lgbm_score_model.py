@@ -1,6 +1,7 @@
 """
 Contains different score models to be used to approximate the score of a given SDE.
 """
+
 from typing import List
 from typing import Optional
 
@@ -9,9 +10,9 @@ import numpy as np
 from jaxtyping import Float
 from jaxtyping import Int
 
-from treeffuser.sde import DiffusionSDE
 from treeffuser._score_models._base import ScoreModel
 from treeffuser._score_models._utils import make_training_data
+from treeffuser.sde import DiffusionSDE
 
 ###################################################
 # Helper functions
@@ -58,12 +59,9 @@ def _fit_one_lgbm_model(
     return model
 
 
-
-
 ###################################################
 # Main models
 ###################################################
-
 
 
 class LightGBMScoreModel(ScoreModel):
@@ -87,6 +85,11 @@ class LightGBMScoreModel(ScoreModel):
     **lgbm_args
         Additional arguments to pass to the LightGBM model. See the LightGBM documentation for more
         information. E.g. `early_stopping_rounds`, `n_estimators`, `learning_rate`, `max_depth`,
+
+    Attributes
+    ----------
+    n_estimators_true : List[int]
+        The true number of trees in each model (in case early stopping is used).
     """
 
     def __init__(
@@ -104,7 +107,8 @@ class LightGBMScoreModel(ScoreModel):
 
         self._lgbm_args = lgbm_args
         self.sde = None
-        self.models = None  # Convention inputs are (x, y, t)
+        self.models = None  # Convention inputs are (y, x, t)
+        self.n_estimators_true = None
 
     def score(
         self,
@@ -116,10 +120,10 @@ class LightGBMScoreModel(ScoreModel):
             raise ValueError("The model has not been fitted yet.")
 
         scores = []
-        predictors = np.concatenate([X, y, t], axis=1)
+        predictors = np.concatenate([y, X, t], axis=1)
         _, std = self.sde.get_mean_std_pt_given_y0(y, t)
         for i in range(y.shape[-1]):
-            # The score is parametrized: score(x, y, t) = GBT(x, y, t) / std(t)
+            # The score is parametrized: score(y, x, t) = GBT(y, x, t) / std(t)
             score_p = self.models[i].predict(predictors, num_threads=self.n_jobs)
             score = score_p / std[:, i]
             scores.append(score)
@@ -175,3 +179,6 @@ class LightGBMScoreModel(ScoreModel):
             )
             models.append(score_model_i)
         self.models = models
+
+        # collect the true number of trees learned by each model
+        self.n_estimators_true = [model.n_estimators_ for model in self.models]

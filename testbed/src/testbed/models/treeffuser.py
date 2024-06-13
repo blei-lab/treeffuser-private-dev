@@ -1,4 +1,3 @@
-from typing import Dict
 from typing import List
 from typing import Optional
 
@@ -79,7 +78,9 @@ class Treeffuser(ProbabilisticModel, MultiOutputMixin):
     def sample(
         self, X: Float[ndarray, "batch x_dim"], n_samples=10, seed=None
     ) -> Float[ndarray, "n_samples batch y_dim"]:
-        return self.model.sample(X, n_samples, n_parallel=10, n_steps=50, seed=seed, verbose=True)
+        return self.model.sample(
+            X, n_samples, n_parallel=10, n_steps=50, seed=seed, verbose=True
+        )
 
     @staticmethod
     def search_space() -> dict:
@@ -88,5 +89,11 @@ class Treeffuser(ProbabilisticModel, MultiOutputMixin):
             "n_repeats": Integer(10, 50),
             "learning_rate": Real(0.01, 1, "log-uniform"),
             "early_stopping_rounds": Integer(10, 100),
-            "num_leaves": Integer(10, 50),
+            "num_leaves": Integer(10, 100),
         }
+
+    def get_extra_stats(self) -> dict:
+        n_estimators_true = self.model.n_estimators_true
+        if len(n_estimators_true) == 1:
+            n_estimators_true = n_estimators_true[0]
+        return {"n_estimators_true": n_estimators_true}

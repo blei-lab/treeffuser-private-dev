@@ -18,9 +18,9 @@ from torch import Tensor
 from torch import nn
 from torch.optim import Adam
 
-from testbed.models._preprocessors import Preprocessor
 from testbed.models.base_model import ProbabilisticModel
 from testbed.models.lightning_uq_models._data_module import GenericDataModule
+from treeffuser.scaler import ScalerMixedTypes
 
 
 class MLP(nn.Module):
@@ -183,8 +183,8 @@ class DeepEnsemble(ProbabilisticModel, MultiOutputMixin):
         if len(y.shape) == 1:
             y = y.reshape(-1, 1)
 
-        self.scaler_x = Preprocessor()
-        self.scaler_y = Preprocessor()
+        self.scaler_x = ScalerMixedTypes()
+        self.scaler_y = ScalerMixedTypes()
 
         X = self.scaler_x.fit_transform(X)
         y = self.scaler_y.fit_transform(y)
@@ -289,7 +289,7 @@ class DeepEnsemble(ProbabilisticModel, MultiOutputMixin):
         X = self.scaler_x.transform(X)
         y = self.scaler_y.transform(y)
 
-        log_sum_std = np.sum(np.log(self.scaler_y.scale_))
+        log_sum_std = np.sum(np.log(self.scaler_y._scaler.scale_))
 
         X_tensor = torch.tensor(X, dtype=torch.float)
         y_tensor = torch.tensor(y, dtype=torch.float)
@@ -321,8 +321,8 @@ class DeepEnsemble(ProbabilisticModel, MultiOutputMixin):
             model.eval()
             mean, var = model(X_tensor)
             std = torch.sqrt(var)
-            mean = mean * self.scaler_y.scale_ + self.scaler_y.mean_
-            std = std * self.scaler_y.scale_
+            mean = mean * self.scaler_y._scaler.scale_ + self.scaler_y._scaler.mean_
+            std = std * self.scaler_y._scaler.scale_
             parameters.append((mean, std))
 
         mix = torch.distributions.Categorical(

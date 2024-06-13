@@ -102,6 +102,10 @@ class ProbabilisticModel(ABC, BaseEstimator):
         )
         return -1.0 * next(iter(metric.compute(self, X, y).values()))
 
+    def get_extra_stats(self) -> dict:
+        """To be subclassed to get extra stats from the model to be logged."""
+        return {}
+
 
 class CachedProbabilisticModel(ProbabilisticModel):
     """
@@ -296,8 +300,12 @@ class BayesOptProbabilisticModel(ProbabilisticModel):
         @use_named_args(space)
         def objective(**params):
             model = self._model_class(**params)
-            model.fit(X_train, y_train)
-            score = model.score(X_val, y_val)
+            try:
+                model.fit(X_train, y_train)
+                score = model.score(X_val, y_val)
+            except Exception as e:
+                print(e)
+                score = -10000000000
             return -score
 
         from skopt import forest_minimize
@@ -355,7 +363,7 @@ def make_autoregressive_probabilistic_model(
     args = [f"{param}=None" for param in params]
     args_string = ", ".join(args)
 
-    class AutoRegressiveProbabilisticModel(ProbabilisticModel, SupportsMultioutput):
+    class AutoRegressiveProbabilisticModel(ProbabilisticModel, MultiOutputMixin):
         # A probabilistic model that models multi-output data by using an autoregressive model.
         # In particular if p(y_1|x) is a ProbabilisticModel, then: we model p(y_i|x, y_{i-1}, ..., y_1)
         # and then we sample sequentially to get the output.
