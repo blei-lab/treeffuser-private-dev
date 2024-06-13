@@ -64,7 +64,7 @@ def _train_model(
     val_loader: DataLoader,
     criterion: Callable,
     optimizer: t.optim.Optimizer,
-    patience: int,
+    early_stopping_rounds: int,
     n_epochs: int,
     verbose: int,
 ):
@@ -94,7 +94,7 @@ def _train_model(
         else:
             patience_counter += 1
 
-        if patience_counter >= patience:
+        if patience_counter >= early_stopping_rounds:
             if verbose:
                 msg = "Early stopping at epoch {}, best loss: {}, best iter: {}"
                 print(msg.format(epoch, best_loss, best_iter))
@@ -120,7 +120,7 @@ class _NNModel:
         batch_size: int,
         seed: int,
         verbose: int,
-        patience: int,
+        early_stopping_rounds: int,
         n_epochs: int,
     ):
         self._model = None
@@ -130,7 +130,7 @@ class _NNModel:
         self._batch_size = batch_size
         self._seed = seed
         self._verbose = verbose
-        self._patience = patience
+        self._early_stopping_rounds = early_stopping_rounds
         self._n_epochs = n_epochs
 
     def fit(
@@ -168,7 +168,7 @@ class _NNModel:
             val_loader=val_loader,
             criterion=criterion,
             optimizer=optimizer,
-            patience=self._patience,
+            early_stopping_rounds=self._early_stopping_rounds,
             n_epochs=self._n_epochs,
             verbose=self._verbose,
         )

@@ -32,7 +32,7 @@ NEURAL_PARAMS = {
     "seed": 0,
     "eval_percent": 0.1,
     "n_jobs": 1,
-    "patience": 10,
+    "early_stopping_rounds": 10,
     "use_separate_models": False,
 }
 
