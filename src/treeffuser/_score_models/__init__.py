@@ -1,7 +1,4 @@
-from treeffuser._score_models._lgbm_score_model import LightGBMScore
-from treeffuser._score_models._base import Score
+from treeffuser._score_models._base import ScoreModel
+from treeffuser._score_models._lgbm_score_model import LightGBMScoreModel
 
-__all__ = [
-    "Score",
-    "LightGBMScore"
-]
+__all__ = ["ScoreModel", "LightGBMScoreModel"]
