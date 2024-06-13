@@ -3,27 +3,25 @@ This file should contain a general abstraction of the score models and
 should function as a wrapper for different models we might want to use.
 """
 
-import abc
+from typing import Callable
 from typing import List
 from typing import Optional
-from typing import Callable
 
 import numpy as np
-from jaxtyping import Float
-from jaxtyping import Int
-
-
-from treeffuser.sde import DiffusionSDE
-from treeffuser._score_models._base import ScoreModel
-from treeffuser._score_models._utils import make_training_data
-
 import torch as t
 import torch.nn as nn
+from jaxtyping import Float
+from jaxtyping import Int
 from torch.utils.data import DataLoader
+
+from treeffuser._score_models._base import ScoreModel
+from treeffuser._score_models._utils import make_training_data
+from treeffuser.sde import DiffusionSDE
 
 ###################################################
 # Helper functions and classes
 ###################################################
+
 
 class _MLPModule(nn.Module):
     def __init__(self, n_layers: int, hidden_size: int, input_size: int, output_size: int):
@@ -47,11 +45,8 @@ class _MLPModule(nn.Module):
     def forward(self, x: Float[t.Tensor, "batch x_dim"]) -> Float[t.Tensor, "batch y_dim"]:
         return self.model(x)
 
-def _evaluate_model(
-    model : nn.Module,
-    data_loader : DataLoader,
-    criterion : Callable
-) -> float:
+
+def _evaluate_model(model: nn.Module, data_loader: DataLoader, criterion: Callable) -> float:
     model.eval()
     total_loss = 0.0
     with t.no_grad():
@@ -62,6 +57,7 @@ def _evaluate_model(
 
     return total_loss / len(data_loader)
 
+
 def _train_model(
     model: nn.Module,
     train_loader: DataLoader,
@@ -70,7 +66,7 @@ def _train_model(
     optimizer: t.optim.Optimizer,
     patience: int,
     n_epochs: int,
-    verbose: int
+    verbose: int,
 ):
     best_loss = np.inf
     best_model = None
@@ -109,6 +105,7 @@ def _train_model(
 
     return model
 
+
 class _NNModel:
     """
     Simple wrapper for fitting a lightgbm model. See
@@ -141,7 +138,7 @@ class _NNModel:
         X: Float[np.ndarray, "batch_train x_dim"],
         y: Float[np.ndarray, "batch_train y_dim"],
         X_val: Float[np.ndarray, "batch_val x_dim"],
-        y_val: Float[np.ndarray, "batch_val y_dim"]
+        y_val: Float[np.ndarray, "batch_val y_dim"],
     ):
         if self._seed is not None:
             t.manual_seed(self._seed)
@@ -159,7 +156,9 @@ class _NNModel:
         criterion = nn.MSELoss()
 
         train_loader = DataLoader(list(zip(X, y)), batch_size=self._batch_size, shuffle=True)
-        val_loader = DataLoader(list(zip(X_val, y_val)), batch_size=self._batch_size, shuffle=False)
+        val_loader = DataLoader(
+            list(zip(X_val, y_val)), batch_size=self._batch_size, shuffle=False
+        )
 
         optimizer = t.optim.Adam(model.parameters(), lr=self._learning_rate)
 
@@ -171,7 +170,7 @@ class _NNModel:
             optimizer=optimizer,
             patience=self._patience,
             n_epochs=self._n_epochs,
-            verbose=self._verbose
+            verbose=self._verbose,
         )
         model.eval()
         self._model = model
@@ -180,15 +179,15 @@ class _NNModel:
         self._model.eval()
         with t.no_grad():
             X = t.tensor(X).float()
-            y =  self._model(X).detach().numpy()
+            y = self._model(X).detach().numpy()
 
             return y
-
 
 
 ###################################################
 # Main models
 ###################################################
+
 
 class NeuralScoreModel(ScoreModel):
     """
@@ -221,7 +220,7 @@ class NeuralScoreModel(ScoreModel):
         eval_percent: float,
         n_jobs: Optional[int],
         use_separate_models: bool,
-        seed: Optional[int]=0,
+        seed: Optional[int] = 0,
         **nn_args,
     ) -> None:
         self.n_repeats = n_repeats
@@ -233,7 +232,6 @@ class NeuralScoreModel(ScoreModel):
         self._nn_args = nn_args
         self.sde = None
         self.models = None  # Convention inputs are (x, y, t)
-
 
     def score(
         self,
@@ -259,12 +257,11 @@ class NeuralScoreModel(ScoreModel):
         # This handles the separate models case
         if scores_p.ndim == 2:
             scores_p = scores_p.T
-        elif scores_p.ndim == 3: # remove last dimension
+        elif scores_p.ndim == 3:  # remove last dimension
             scores_p = scores_p.squeeze(-1).T
 
         scores = scores_p / std
         return scores
-
 
     def fit(
         self,
@@ -302,21 +299,9 @@ class NeuralScoreModel(ScoreModel):
             seed=self.seed,
         )
         if self.use_separate_models:
-            self._fit_separate(
-                nn_X_train,
-                nn_y_train,
-                nn_X_val,
-                nn_y_val,
-                cat_idx
-            )
+            self._fit_separate(nn_X_train, nn_y_train, nn_X_val, nn_y_val, cat_idx)
         else:
-            self._fit_single(
-                nn_X_train,
-                nn_y_train,
-                nn_X_val,
-                nn_y_val,
-                cat_idx
-            )
+            self._fit_single(nn_X_train, nn_y_train, nn_X_val, nn_y_val, cat_idx)
 
     def _fit_separate(
         self,
@@ -353,9 +338,9 @@ class NeuralScoreModel(ScoreModel):
             model = _NNModel(**self._nn_args, seed=self.seed)
             model.fit(
                 nn_X_train,
-                nn_y_train[:, i].reshape(-1, 1), #(batch_train, 1)
+                nn_y_train[:, i].reshape(-1, 1),  # (batch_train, 1)
                 nn_X_val,
-                nn_y_val[:, i].reshape(-1, 1), #(batch_val, 1)
+                nn_y_val[:, i].reshape(-1, 1),  # (batch_val, 1)
             )
             models.append(model)
         self.models = models
@@ -387,10 +372,5 @@ class NeuralScoreModel(ScoreModel):
             assumed to be continuous.
         """
         model = _NNModel(**self._nn_args, seed=self.seed)
-        model.fit(
-            nn_X_train,
-            nn_y_train,
-            nn_X_val,
-            nn_y_val
-        )
+        model.fit(nn_X_train, nn_y_train, nn_X_val, nn_y_val)
         self.models = [model]
