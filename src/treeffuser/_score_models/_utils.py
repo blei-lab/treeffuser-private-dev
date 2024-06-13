@@ -1,12 +1,11 @@
-from jaxtyping import Float
-from jaxtyping import Int
-import numpy as np
 from typing import List
 from typing import Optional
 
+import numpy as np
+from jaxtyping import Float
 from sklearn.model_selection import train_test_split
-from treeffuser.sde import DiffusionSDE
 
+from treeffuser.sde import DiffusionSDE
 
 
 def make_training_data(
@@ -20,7 +19,7 @@ def make_training_data(
 ):
     """
     Creates the training data for the score model. This functions assumes that
-    1.  Score is parametrized as score(x, y, t) = GBT(x, y, t) / std(t)
+    1.  Score is parametrized as score(y, x, t) = GBT(y, x, t) / std(t)
     2.  The loss that we want to use is
         || std(t) * score(y_perturbed, x, t) - (mean(y, t) - y_perturbed)/std(t) ||^2
         Which corresponds to the standard denoising objective with weights std(t)**2
@@ -29,8 +28,8 @@ def make_training_data(
         where z is the noise added to y_perturbed.
 
     Returns:
-    - predictors_train: X_train=[x_train, y_perturbed_train, t_train] for lgbm
-    - predictors_val: X_val=[x_val, y_perturbed_val, t_val] for lgbm
+    - predictors_train: X_train=[y_perturbed_train, x_train, t_train] for lgbm
+    - predictors_val: X_val=[y_perturbed_val, x_val, t_val] for lgbm
     - predicted_train: y_train=[-z_train] for lgbm
     - predicted_val: y_val=[-z_val] for lgbm
     """
@@ -56,8 +55,7 @@ def make_training_data(
 
     train_mean, train_std = sde.get_mean_std_pt_given_y0(y_train, t_train)
     perturbed_y_train = train_mean + train_std * z_train
-
-    predictors_train = np.concatenate([X_train, perturbed_y_train, t_train], axis=1)
+    predictors_train = np.concatenate([perturbed_y_train, X_train, t_train], axis=1)
     predicted_train = -1.0 * z_train
 
     # VALIDATION DATA
@@ -68,11 +66,10 @@ def make_training_data(
         val_mean, val_std = sde.get_mean_std_pt_given_y0(y_test, t_val)
         perturbed_y_val = val_mean + val_std * z_val
         predictors_val = np.concatenate(
-            [X_test, perturbed_y_val, t_val.reshape(-1, 1)], axis=1
+            [perturbed_y_val, X_test, t_val.reshape(-1, 1)], axis=1
         )
         predicted_val = -1.0 * z_val
 
-    # cat_idx is not changed
+    cat_idx = [c + y_train.shape[1] for c in cat_idx] if cat_idx is not None else None
+
     return predictors_train, predictors_val, predicted_train, predicted_val, cat_idx
-
-
