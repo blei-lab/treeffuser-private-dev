@@ -143,6 +143,9 @@ class _NNModel:
         X_val: Float[np.ndarray, "batch_val x_dim"],
         y_val: Float[np.ndarray, "batch_val y_dim"]
     ):
+        if self._seed is not None:
+            t.manual_seed(self._seed)
+
         X = t.tensor(X).float()
         y = t.tensor(y).float()
 
@@ -230,6 +233,7 @@ class NeuralScoreModel(ScoreModel):
         self._nn_args = nn_args
         self.sde = None
         self.models = None  # Convention inputs are (x, y, t)
+
 
     def score(
         self,
