@@ -95,11 +95,13 @@ class BaseTabularDiffusion(BaseEstimator, abc.ABC):
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y, dtype=np.float32)
         self._y_dim = y.shape[1]
+
         x_transformed = self._x_scaler.fit_transform(
             X,
             cat_idx=cat_idx,
         )
         y_transformed = self._y_scaler.fit_transform(y)
+
 
         if self.sde_initialize_from_data:
             self.sde.initialize_hyperparams_from_data(y_transformed)
@@ -137,6 +139,7 @@ class BaseTabularDiffusion(BaseEstimator, abc.ABC):
         """
         if not self._is_fitted:
             raise ValueError("The model has not been fitted yet.")
+
 
         x_transformed = self._x_scaler.transform(X)
         batch_size_x = x_transformed.shape[0]

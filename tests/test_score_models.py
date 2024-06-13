@@ -86,6 +86,7 @@ def test_linear_regression(score_class, args):
 
     # Check that the R^2 is close to 1
     r2 = r2_score(y.flatten(), y_pred.flatten())
+    print(f"R^2: {r2}, class: {score_class}, args: {args}")
     assert r2 > 0.95, f"R^2 is {r2}"
 
 @pytest.mark.parametrize(

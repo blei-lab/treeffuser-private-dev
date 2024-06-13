@@ -17,6 +17,8 @@ from torch.utils.data import DataLoader
 from treeffuser._score_models._base import ScoreModel
 from treeffuser._score_models._utils import make_training_data
 from treeffuser.sde import DiffusionSDE
+from treeffuser.scaler import ScalerMixedTypes
+from sklearn.preprocessing import MinMaxScaler
 
 ###################################################
 # Helper functions and classes
@@ -75,16 +77,20 @@ def _train_model(
 
     for epoch in range(n_epochs):
         model.train()
+        epoch_loss = 0.0
         for data, target in train_loader:
             optimizer.zero_grad()
             output = model(data)
             loss = criterion(output, target)
             loss.backward()
+            epoch_loss += loss.item()
             optimizer.step()
 
+        train_loss = epoch_loss / len(train_loader)
         val_loss = _evaluate_model(model, val_loader, criterion)
+
         if verbose:
-            print(f"Epoch {epoch}, val loss: {val_loss}, best loss: {best_loss}")
+            print(f"Epoch {epoch}, train_loss {train_loss}, val loss: {val_loss}, best loss: {best_loss}")
 
         if val_loss < best_loss:
             best_loss = val_loss
@@ -133,6 +139,9 @@ class _NNModel:
         self._early_stopping_rounds = early_stopping_rounds
         self._n_epochs = n_epochs
 
+        self.x_scaler = None
+        self.y_scaler = None
+
     def fit(
         self,
         X: Float[np.ndarray, "batch_train x_dim"],
@@ -140,6 +149,15 @@ class _NNModel:
         X_val: Float[np.ndarray, "batch_val x_dim"],
         y_val: Float[np.ndarray, "batch_val y_dim"],
     ):
+        self.x_scaler = ScalerMixedTypes(scaler=MinMaxScaler())
+        self.y_scaler = ScalerMixedTypes(scaler=MinMaxScaler())
+
+        X = self.x_scaler.fit_transform(X)
+        y = self.y_scaler.fit_transform(y)
+        X_val = self.x_scaler.transform(X_val)
+        y_val = self.y_scaler.transform(y_val)
+
+
         if self._seed is not None:
             t.manual_seed(self._seed)
 
@@ -153,7 +171,7 @@ class _NNModel:
         y_dim = y.shape[1]
 
         model = _MLPModule(self._n_layers, self._hidden_size, x_dim, y_dim)
-        criterion = nn.MSELoss()
+        criterion = nn.MSELoss(reduction="mean")
 
         train_loader = DataLoader(list(zip(X, y)), batch_size=self._batch_size, shuffle=True)
         val_loader = DataLoader(
@@ -176,10 +194,12 @@ class _NNModel:
         self._model = model
 
     def predict(self, X: Float[np.ndarray, "batch x_dim"]) -> Float[np.ndarray, "batch y_dim"]:
+        X = self.x_scaler.transform(X)
         self._model.eval()
         with t.no_grad():
             X = t.tensor(X).float()
             y = self._model(X).detach().numpy()
+            y = self.y_scaler.inverse_transform(y)
 
             return y
 

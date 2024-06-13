@@ -107,7 +107,6 @@ class NNffuser(BaseTabularDiffusion):
     def get_new_score_model(self) -> ScoreModel:
         score_model = NeuralScoreModel(
             n_repeats=self.n_repeats,
-            n_estimators=self.n_estimators,
             eval_percent=self.eval_percent,
             early_stopping_rounds=self.early_stopping_rounds,
             n_epochs=self.n_epochs,
