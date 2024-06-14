@@ -1,4 +1,3 @@
-from typing import List
 from typing import Literal
 from typing import Optional
 
@@ -13,6 +12,7 @@ class NNffuser(BaseTabularDiffusion):
     """
     A standard diffusion model with a neural network score model.
     """
+
     def __init__(
         self,
         n_repeats: int = 10,

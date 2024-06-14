@@ -12,13 +12,13 @@ import torch as t
 import torch.nn as nn
 from jaxtyping import Float
 from jaxtyping import Int
+from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader
 
 from treeffuser._score_models._base import ScoreModel
 from treeffuser._score_models._utils import make_training_data
-from treeffuser.sde import DiffusionSDE
 from treeffuser.scaler import ScalerMixedTypes
-from sklearn.preprocessing import MinMaxScaler
+from treeffuser.sde import DiffusionSDE
 
 ###################################################
 # Helper functions and classes
@@ -30,7 +30,7 @@ class _MLPModule(nn.Module):
         """
         Simple MLP model with ReLU activation functions.
         """
-        super(_MLPModule, self).__init__()
+        super().__init__()
         layers = []
 
         layers.append(nn.Linear(input_size, hidden_size))
@@ -90,7 +90,9 @@ def _train_model(
         val_loss = _evaluate_model(model, val_loader, criterion)
 
         if verbose:
-            print(f"Epoch {epoch}, train_loss {train_loss}, val loss: {val_loss}, best loss: {best_loss}")
+            print(
+                f"Epoch {epoch}, train_loss {train_loss}, val loss: {val_loss}, best loss: {best_loss}"
+            )
 
         if val_loss < best_loss:
             best_loss = val_loss
@@ -156,7 +158,6 @@ class _NNModel:
         y = self.y_scaler.fit_transform(y)
         X_val = self.x_scaler.transform(X_val)
         y_val = self.y_scaler.transform(y_val)
-
 
         if self._seed is not None:
             t.manual_seed(self._seed)

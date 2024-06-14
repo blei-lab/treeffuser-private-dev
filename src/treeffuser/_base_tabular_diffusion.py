@@ -102,7 +102,6 @@ class BaseTabularDiffusion(BaseEstimator, abc.ABC):
         )
         y_transformed = self._y_scaler.fit_transform(y)
 
-
         if self.sde_initialize_from_data:
             self.sde.initialize_hyperparams_from_data(y_transformed)
         self.score_model.fit(x_transformed, y_transformed, self.sde, cat_idx)
@@ -139,7 +138,6 @@ class BaseTabularDiffusion(BaseEstimator, abc.ABC):
         """
         if not self._is_fitted:
             raise ValueError("The model has not been fitted yet.")
-
 
         x_transformed = self._x_scaler.transform(X)
         batch_size_x = x_transformed.shape[0]
