@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import ks_2samp
 
-from treeffuser.baselines import NNffuser
+from treeffuser.baselines.nnffuser import NNffuser
 
 from ..utils import gaussian_mixture_pdf
 from ..utils import train_test_split
