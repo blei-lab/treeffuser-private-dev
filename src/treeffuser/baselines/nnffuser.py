@@ -10,13 +10,15 @@ from treeffuser.sde import get_diffusion_sde
 
 class NNffuser(BaseTabularDiffusion):
     """
-    A standard diffusion model with a neural network score model.
+    A standard diffusion model with a neural network score model. A CARD-like
+    architecture is also available.
     """
 
     def __init__(
         self,
         n_repeats: int = 10,
-        n_epochs: int = 100,
+        eval_freq: int = 100,
+        max_evals: int = 1000,
         early_stopping_rounds: int = 10,
         eval_percent: float = 0.1,
         use_separate_models: bool = True,
@@ -24,9 +26,11 @@ class NNffuser(BaseTabularDiffusion):
         n_layers: int = 2,
         hidden_size: int = 10,
         batch_size: int = 32,
+        decay: float = 0.999,
         weight_decay: float = 0.0,
         n_jobs: int = -1,
         sde_name: str = "vesde",
+        card_like: bool = False,
         sde_initialize_from_data: bool = False,
         sde_hyperparam_min: Optional[float | Literal["default"]] = None,
         sde_hyperparam_max: Optional[float | Literal["default"]] = None,
@@ -37,9 +41,6 @@ class NNffuser(BaseTabularDiffusion):
         n_repeats : int
             How many times to repeat the training dataset when fitting the score. That is, how many
             noisy versions of a point to generate for training.
-        n_epochs : int
-            NN: Maximum number of epochs to train the neural network for. Due to early stopping,
-            the actual number of epochs may be less.
         early_stopping_rounds : int
             NN: If `None`, no early stopping is performed. Otherwise, the model will stop training
             if no improvement is observed in the validation set for `early_stopping_rounds` consecutive
@@ -51,6 +52,8 @@ class NNffuser(BaseTabularDiffusion):
             NN: Whether to use separate models for each dimension of the score. If `True`, a separate
             model is trained for each dimension of the score. If `False`, a single model is trained
             for all dimensions of the score.
+        decay : float
+            NN: Decay rate for the exponential moving average of the parameters.
         learning_rate : float
             NN: Learning rate for the neural network.
         n_layers : int
@@ -59,6 +62,15 @@ class NNffuser(BaseTabularDiffusion):
             NN: Number of hidden units in each hidden layer of the neural network.
         batch_size : int
             NN: Batch size for training the neural network.
+        card_like : bool
+            NN:Whether to use a CARD-like architecture. Otherwise, a standard feedforward neural network
+            is used.
+        eval_freq : int
+            NN: Frequency of evaluation during training. Must be larger than 0.
+            This is the equivalent of the number of iterations per epoch.
+        max_evals : int
+            NN: Maximum number of evaluations during training. Must be larger than 0.
+            eval_freq * max_evals is the maximum number of gradient updates.
         weight_decay : float
             NN: L2 regularization strength for the neural network.
         n_jobs : int
@@ -83,7 +95,8 @@ class NNffuser(BaseTabularDiffusion):
         )
         self.sde_name = sde_name
         self.n_repeats = n_repeats
-        self.n_epochs = n_epochs
+        self.max_evals = max_evals
+        self.eval_freq = eval_freq
         self.early_stopping_rounds = early_stopping_rounds
         self.eval_percent = eval_percent
         self.use_separate_models = use_separate_models
@@ -91,12 +104,14 @@ class NNffuser(BaseTabularDiffusion):
         self.n_layers = n_layers
         self.hidden_size = hidden_size
         self.batch_size = batch_size
+        self.decay = decay
         self.weight_decay = weight_decay
         self.n_jobs = n_jobs
         self.sde_hyperparam_min = sde_hyperparam_min
         self.sde_hyperparam_max = sde_hyperparam_max
         self.seed = seed
         self.verbose = verbose
+        self.card_like = card_like
 
     def get_new_sde(self) -> DiffusionSDE:
         sde_cls = get_diffusion_sde(self.sde_name)
@@ -113,13 +128,16 @@ class NNffuser(BaseTabularDiffusion):
             n_repeats=self.n_repeats,
             eval_percent=self.eval_percent,
             early_stopping_rounds=self.early_stopping_rounds,
-            n_epochs=self.n_epochs,
+            max_evals=self.max_evals,
+            eval_freq=self.eval_freq,
             learning_rate=self.learning_rate,
             n_layers=self.n_layers,
             hidden_size=self.hidden_size,
             batch_size=self.batch_size,
+            decay=self.decay,
             weight_decay=self.weight_decay,
             use_separate_models=self.use_separate_models,
+            card_like=self.card_like,
             verbose=self.verbose,
             seed=self.seed,
             n_jobs=self.n_jobs,

@@ -1,18 +1,20 @@
 import numpy as np
+import pytest
 from scipy.stats import ks_2samp
 
 from treeffuser.baselines.nnffuser import NNffuser
 
-from ..utils import gaussian_mixture_pdf
-from ..utils import train_test_split
+from .utils import gaussian_mixture_pdf
+from .utils import train_test_split
 
 
-def test_baselines_bimodal_linear_regression():
+@pytest.mark.parametrize("card_like", [False])
+def test_baselines_bimodal_linear_regression(card_like):
     """
     We do a very simple sanity check that for a very simple model with not enough data the
     samples from the model should be statistically indistinguishable from the data.
     """
-    n = 500
+    n = 10000
     n_samples = 1
     rng = np.random.default_rng(seed=0)
 
@@ -33,30 +35,35 @@ def test_baselines_bimodal_linear_regression():
     X_train = X[:n]
     y_train = y[:n]
 
-    X_test = X[n:]
-    y_test = y[n:]
+    X_test = X[-100:]
+    y_test = y[-100:]
 
     model = NNffuser(
         verbose=1,
         n_repeats=20,
-        n_epochs=1000,
+        card_like=card_like,
         sde_name="vesde",
-        batch_size=64,
-        hidden_size=256,
-        learning_rate=0.001,
+        batch_size=256,
+        n_layers=3,
+        hidden_size=100,
+        learning_rate=0.005,
+        decay=0.0,
         early_stopping_rounds=100,
+        eval_freq=100,
+        max_evals=1000,
         seed=0,
     )
     model.fit(X_train, y_train)
-
     y_samples = model.sample(X_test, n_samples=n_samples, n_parallel=50, n_steps=30, seed=0)
+
 
     y_samples = y_samples.flatten()
     y_test = y_test.flatten()
 
+
     # Check that the samples are statistically indistinguishable from the data
     result = ks_2samp(y_samples, y_test)
-    assert result.pvalue > 0.05
+    assert result.pvalue > 0.05, f"p-value: {result.pvalue}"
 
 
 def test_sample_based_nll_gaussian_mixture():
@@ -76,11 +83,13 @@ def test_sample_based_nll_gaussian_mixture():
     model = NNffuser(
         verbose=1,
         n_repeats=20,
-        n_epochs=1000,
+        max_evals=100000,
+        eval_freq=100,
         hidden_size=100,
-        n_layers=5,
+        n_layers=3,
         sde_name="vesde",
-        learning_rate=0.01,
+        learning_rate=0.005,
+        decay=0.999,
         early_stopping_rounds=20,
         seed=0,
     )
@@ -113,3 +122,6 @@ def test_categorical():
     for cat_idx in [None, [1]]:
         model = NNffuser()
         model.fit(X=X, y=y, cat_idx=cat_idx)
+
+
+

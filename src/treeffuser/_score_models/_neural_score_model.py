@@ -8,6 +8,10 @@ from typing import List
 from typing import Optional
 
 import numpy as np
+
+###################################################
+# Helper functions and classes
+###################################################
 import torch as t
 import torch.nn as nn
 from jaxtyping import Float
@@ -20,9 +24,40 @@ from treeffuser._score_models._utils import make_training_data
 from treeffuser.scaler import ScalerMixedTypes
 from treeffuser.sde import DiffusionSDE
 
-###################################################
-# Helper functions and classes
-###################################################
+
+class EMA:
+    def __init__(self, model, decay):
+        self.model = model
+        self.decay = decay
+        self.shadow = {}
+        self.backup = {}
+
+        # Initialize shadow parameters
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name] = param.data.clone()
+
+    def update(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                # Update shadow parameters
+                new_average = (1.0 - self.decay) * param.data + self.decay * self.shadow[name]
+                self.shadow[name] = new_average.clone()
+
+    def apply_shadow(self):
+        # Save the current parameters
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.backup[name] = param.data.clone()
+                # Replace model parameters with shadow parameters
+                param.data = self.shadow[name]
+
+    def restore(self):
+        # Restore the original parameters
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                param.data = self.backup[name]
+        self.backup = {}
 
 
 class _MLPModule(nn.Module):
@@ -48,6 +83,41 @@ class _MLPModule(nn.Module):
         return self.model(x)
 
 
+class _CardLikeMLPModule(nn.Module):
+    def __init__(self, n_layers: int, hidden_size: int, input_size: int, output_size: int):
+        """
+        Simple MLP model with ReLU activation functions. Using Card like architecture.
+        In particular, this assumes that the input is of the form [y, x, t]
+        and an embedding of t is added after each layer.
+        """
+        super().__init__()
+        layers = []
+        t_embeddings = []
+
+        layers.append(nn.Linear(input_size - 1, hidden_size))
+        t_embeddings.append(nn.Linear(1, hidden_size))
+
+        for _ in range(n_layers - 1):
+            layers.append(nn.Linear(hidden_size, hidden_size))
+            t_embeddings.append(nn.Linear(1, hidden_size))
+
+        layers.append(nn.Linear(hidden_size, output_size))
+
+        self.layers = nn.ModuleList(layers)
+        self.t_embeddings = nn.ModuleList(t_embeddings)
+
+    def forward(self, x: Float[t.Tensor, "batch x_dim"]) -> Float[t.Tensor, "batch y_dim"]:
+        yx = x[:, :-1]
+        t = x[:, -1].unsqueeze(-1)
+        out = yx
+        for i, layer in enumerate(self.layers):
+            out = layer(out)
+            if i < len(self.layers) - 1:
+                out += self.t_embeddings[i](t)
+                out = nn.ReLU()(out)
+        return out
+
+
 def _evaluate_model(model: nn.Module, data_loader: DataLoader, criterion: Callable) -> float:
     model.eval()
     total_loss = 0.0
@@ -67,7 +137,9 @@ def _train_model(
     criterion: Callable,
     optimizer: t.optim.Optimizer,
     early_stopping_rounds: int,
-    n_epochs: int,
+    max_evals: int,
+    decay: float,
+    eval_freq: int,
     verbose: int,
 ):
     best_loss = np.inf
@@ -75,38 +147,56 @@ def _train_model(
     best_iter = 0
     patience_counter = 0
 
-    for epoch in range(n_epochs):
-        model.train()
-        epoch_loss = 0.0
+    n_iters = 0
+    eval_round_train_loss = 0.0
+
+    ema = EMA(model, decay=decay)
+
+    while True:
         for data, target in train_loader:
             optimizer.zero_grad()
             output = model(data)
             loss = criterion(output, target)
             loss.backward()
-            epoch_loss += loss.item()
+            eval_round_train_loss += loss.item()
             optimizer.step()
+            ema.update()
 
-        train_loss = epoch_loss / len(train_loader)
-        val_loss = _evaluate_model(model, val_loader, criterion)
+            n_iters += 1
 
-        if verbose:
-            print(
-                f"Epoch {epoch}, train_loss {train_loss}, val loss: {val_loss}, best loss: {best_loss}"
-            )
+            if n_iters % eval_freq == 0:
+                ema.apply_shadow()
+                val_loss = _evaluate_model(model, val_loader, criterion)
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_model = model.state_dict()
+                    best_iter = n_iters
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
 
-        if val_loss < best_loss:
-            best_loss = val_loss
-            best_iter = epoch
-            best_model = model.state_dict()
-            patience_counter = 0
-        else:
-            patience_counter += 1
+                if verbose:
+                    msg = "Iter {}, val loss: {}, train loss: {}"
+                    eval_round_train_loss /= eval_freq
+                    print(msg.format(n_iters, val_loss, eval_round_train_loss))
 
-        if patience_counter >= early_stopping_rounds:
-            if verbose:
-                msg = "Early stopping at epoch {}, best loss: {}, best iter: {}"
-                print(msg.format(epoch, best_loss, best_iter))
+                if patience_counter >= early_stopping_rounds or n_iters >= max_evals:
+                    break
+
+                eval_round_train_loss = 0.0
+                ema.restore()
+
+        if patience_counter >= early_stopping_rounds or n_iters >= max_evals:
             break
+
+    ema.apply_shadow()
+    if verbose:
+        msg = "Best model found at iter {}, with val loss: {}"
+        print(msg.format(best_iter, best_loss))
+        if n_iters >= max_evals:
+            print("Training stopped because max evals reached.")
+        if patience_counter >= early_stopping_rounds:
+            print("Training stopped because of early stopping.")
 
     if best_model:
         model.load_state_dict(best_model)
@@ -116,8 +206,12 @@ def _train_model(
 
 class _NNModel:
     """
-    Simple wrapper for fitting a lightgbm model. See
-    the lightgbm score function documentation for more details.
+    A simple neural network model for regression with the option to implement
+    a card-like architecture specialized for diffusion models.
+
+    For further details on the card-like architecture,
+    see appendix of the paper:
+        https://arxiv.org/pdf/2206.07275
     """
 
     def __init__(
@@ -126,12 +220,47 @@ class _NNModel:
         n_layers: int,
         hidden_size: int,
         batch_size: int,
-        seed: int,
         verbose: int,
+        eval_freq: int,
+        decay: float,
         early_stopping_rounds: int,
-        n_epochs: int,
+        max_evals: int,
+        card_like: bool = False,
         weight_decay: float = 0.0,
+        seed: int = 0,
     ):
+        """
+        Simple neural network model for regression. Specialized for diffusion models.
+
+        learning_rate : float
+            The learning rate for the optimizer.
+        n_layers : int
+            The number of hidden layers in the neural network.
+        hidden_size : int
+            The size of the hidden layers.
+        batch_size : int
+            The batch size for training.
+        seed : int
+            The random seed for the model.
+        verbose : int
+            Verbosity of the model.
+        eval_freq : int
+            After how many iterations to perform the evaluation of the
+            validation set.
+        decay : float
+            The decay rate for the exponential moving average.
+        early_stopping_rounds : int
+            The number of evaluations without improvement before stopping.
+        max_evals : int
+            The maximum number of evaluations. This would be the equivalent
+            to the maximum number of epochs in a normal training loop.
+        card_like : bool
+            Whether to use the card-like architecture. See `_CardLikeMLPModule`.
+            for more information.
+        weight_decay : float
+        seed : int
+        """
+
         self._model = None
         self._learning_rate = learning_rate
         self._n_layers = n_layers
@@ -140,8 +269,11 @@ class _NNModel:
         self._seed = seed
         self._verbose = verbose
         self._early_stopping_rounds = early_stopping_rounds
-        self._n_epochs = n_epochs
+        self._eval_freq = eval_freq
+        self._max_evals = max_evals
         self._weight_decay = weight_decay
+        self._card_like = card_like
+        self._decay = decay
 
         self.x_scaler = None
         self.y_scaler = None
@@ -173,7 +305,11 @@ class _NNModel:
         x_dim = X.shape[1]
         y_dim = y.shape[1]
 
-        model = _MLPModule(self._n_layers, self._hidden_size, x_dim, y_dim)
+        if self._card_like:
+            model = _CardLikeMLPModule(self._n_layers, self._hidden_size, x_dim, y_dim)
+        else:
+            model = _MLPModule(self._n_layers, self._hidden_size, x_dim, y_dim)
+
         criterion = nn.MSELoss(reduction="mean")
 
         train_loader = DataLoader(list(zip(X, y)), batch_size=self._batch_size, shuffle=True)
@@ -195,8 +331,10 @@ class _NNModel:
             criterion=criterion,
             optimizer=optimizer,
             early_stopping_rounds=self._early_stopping_rounds,
-            n_epochs=self._n_epochs,
+            max_evals=self._max_evals,
+            eval_freq=self._eval_freq,
             verbose=self._verbose,
+            decay=self._decay,
         )
         model.eval()
         self._model = model
