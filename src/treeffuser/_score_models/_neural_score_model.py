@@ -286,7 +286,7 @@ class NeuralScoreModel(ScoreModel):
         if scores_p.ndim == 2:
             scores_p = scores_p.T
         elif scores_p.ndim == 3:  # remove last dimension
-            scores_p = scores_p.squeeze(-1).T
+            scores_p = scores_p[..., 0].T
 
         scores = scores_p / std
         return scores
