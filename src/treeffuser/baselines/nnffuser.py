@@ -24,6 +24,7 @@ class NNffuser(BaseTabularDiffusion):
         n_layers: int = 2,
         hidden_size: int = 10,
         batch_size: int = 32,
+        weight_decay: float = 0.0,
         n_jobs: int = -1,
         sde_name: str = "vesde",
         sde_initialize_from_data: bool = False,
@@ -58,6 +59,8 @@ class NNffuser(BaseTabularDiffusion):
             NN: Number of hidden units in each hidden layer of the neural network.
         batch_size : int
             NN: Batch size for training the neural network.
+        weight_decay : float
+            NN: L2 regularization strength for the neural network.
         n_jobs : int
             NN: Number of parallel threads. If set to -1, the number is set to the number of available cores.
         sde_name : str
@@ -88,6 +91,7 @@ class NNffuser(BaseTabularDiffusion):
         self.n_layers = n_layers
         self.hidden_size = hidden_size
         self.batch_size = batch_size
+        self.weight_decay = weight_decay
         self.n_jobs = n_jobs
         self.sde_hyperparam_min = sde_hyperparam_min
         self.sde_hyperparam_max = sde_hyperparam_max
@@ -114,6 +118,7 @@ class NNffuser(BaseTabularDiffusion):
             n_layers=self.n_layers,
             hidden_size=self.hidden_size,
             batch_size=self.batch_size,
+            weight_decay=self.weight_decay,
             use_separate_models=self.use_separate_models,
             verbose=self.verbose,
             seed=self.seed,

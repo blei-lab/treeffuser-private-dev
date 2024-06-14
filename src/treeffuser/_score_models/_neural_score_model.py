@@ -130,6 +130,7 @@ class _NNModel:
         verbose: int,
         early_stopping_rounds: int,
         n_epochs: int,
+        weight_decay: float = 0.0,
     ):
         self._model = None
         self._learning_rate = learning_rate
@@ -140,6 +141,7 @@ class _NNModel:
         self._verbose = verbose
         self._early_stopping_rounds = early_stopping_rounds
         self._n_epochs = n_epochs
+        self._weight_decay = weight_decay
 
         self.x_scaler = None
         self.y_scaler = None
@@ -180,6 +182,11 @@ class _NNModel:
         )
 
         optimizer = t.optim.Adam(model.parameters(), lr=self._learning_rate)
+        optimizer = t.optim.Adam(
+            model.parameters(),
+            lr=self._learning_rate,
+            weight_decay=self._weight_decay,
+        )
 
         model = _train_model(
             model=model,
