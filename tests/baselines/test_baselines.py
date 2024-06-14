@@ -41,8 +41,10 @@ def test_baselines_bimodal_linear_regression():
         n_repeats=20,
         n_epochs=1000,
         sde_name="vesde",
-        learning_rate=0.01,
-        early_stopping_rounds=20,
+        batch_size=64,
+        hidden_size=256,
+        learning_rate=0.001,
+        early_stopping_rounds=100,
         seed=0,
     )
     model.fit(X_train, y_train)
