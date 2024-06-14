@@ -277,7 +277,7 @@ class NeuralScoreModel(ScoreModel):
 
         for i in range(len(self.models)):
             model = self.models[i]
-            score_p = model.predict(predictors)
+            score_p = model.predict(predictors) / std[:, i]
             scores_p.append(score_p)
 
         scores_p = np.array(scores_p)
@@ -288,8 +288,7 @@ class NeuralScoreModel(ScoreModel):
         elif scores_p.ndim == 3:  # remove last dimension
             scores_p = scores_p[..., 0].T
 
-        scores = scores_p / std
-        return scores
+        return scores_p
 
     def fit(
         self,
