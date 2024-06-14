@@ -264,7 +264,7 @@ class NeuralScoreModel(ScoreModel):
 
         scores_p = []
 
-        predictors = np.concatenate([X, y, t], axis=1)
+        predictors = np.concatenate([y, X, t], axis=1)
         _, std = self.sde.get_mean_std_pt_given_y0(y, t)
 
         for i in range(len(self.models)):
