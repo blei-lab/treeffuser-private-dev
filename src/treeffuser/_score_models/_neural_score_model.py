@@ -153,8 +153,8 @@ class _NNModel:
         X_val: Float[np.ndarray, "batch_val x_dim"],
         y_val: Float[np.ndarray, "batch_val y_dim"],
     ):
-        self.x_scaler = ScalerMixedTypes(scaler=MinMaxScaler())
-        self.y_scaler = ScalerMixedTypes(scaler=MinMaxScaler())
+        self.x_scaler = ScalerMixedTypes(scaler=MinMaxScaler((-1, 1)))
+        self.y_scaler = ScalerMixedTypes(scaler=MinMaxScaler((-1, 1)))
 
         X = self.x_scaler.fit_transform(X)
         y = self.y_scaler.fit_transform(y)
@@ -181,11 +181,11 @@ class _NNModel:
             list(zip(X_val, y_val)), batch_size=self._batch_size, shuffle=False
         )
 
-        optimizer = t.optim.Adam(model.parameters(), lr=self._learning_rate)
         optimizer = t.optim.Adam(
             model.parameters(),
             lr=self._learning_rate,
             weight_decay=self._weight_decay,
+            amsgrad=True,
         )
 
         model = _train_model(
