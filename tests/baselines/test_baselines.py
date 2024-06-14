@@ -20,7 +20,7 @@ def test_baselines_bimodal_linear_regression():
     y_1 = X_1 + rng.normal(size=(n, 1)) * 0.05 * (X_1 + 1) ** 2
 
     X_2 = rng.uniform(size=(n, 1))
-    y_2 = X_2 + rng.normal(size=(n, 1)) * 0.05 * (X_2 + 1) ** 2
+    y_2 = -X_2 + rng.normal(size=(n, 1)) * 0.05 * (X_2 + 1) ** 2
 
     X = np.concatenate([X_1, X_2], axis=0)
     y = np.concatenate([y_1, y_2], axis=0)
