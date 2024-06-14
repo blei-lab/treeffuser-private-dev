@@ -259,7 +259,7 @@ class NeuralScoreModel(ScoreModel):
 
         self._nn_args = nn_args
         self.sde = None
-        self.models = None  # Convention inputs are (x, y, t)
+        self.models = None  # Convention inputs are (y, x, t)
 
     def score(
         self,
