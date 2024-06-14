@@ -113,6 +113,3 @@ def test_categorical():
     for cat_idx in [None, [1]]:
         model = NNffuser()
         model.fit(X=X, y=y, cat_idx=cat_idx)
-
-test_baselines_bimodal_linear_regression()
-test_sample_based_nll_gaussian_mixture()
