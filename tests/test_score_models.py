@@ -3,15 +3,15 @@ Contains all of the test for the different score model classes.
 """
 
 import numpy as np
-from einops import repeat
 import pytest
+from einops import repeat
 
-from treeffuser._score_models import LightGBMScoreModel, NeuralScoreModel
+from treeffuser._score_models import LightGBMScoreModel
+from treeffuser._score_models import NeuralScoreModel
 from treeffuser.sde.diffusion_sdes import VESDE
 
 from .utils import generate_bimodal_linear_regression_data
 from .utils import r2_score
-
 
 LGBM_PARAMS = {
     "n_estimators": 100,
@@ -36,12 +36,13 @@ NEURAL_PARAMS = {
     "use_separate_models": False,
 }
 
+
 @pytest.mark.parametrize(
     "score_class, args",
     [
         (LightGBMScoreModel, LGBM_PARAMS),
         (NeuralScoreModel, {**NEURAL_PARAMS, "use_separate_models": False}),
-        (NeuralScoreModel, {**NEURAL_PARAMS, "use_separate_models": True})
+        (NeuralScoreModel, {**NEURAL_PARAMS, "use_separate_models": True}),
     ],
 )
 def test_linear_regression(score_class, args):
@@ -89,12 +90,13 @@ def test_linear_regression(score_class, args):
     print(f"R^2: {r2}, class: {score_class}, args: {args}")
     assert r2 > 0.95, f"R^2 is {r2}"
 
+
 @pytest.mark.parametrize(
     "score_class, args",
     [
         (LightGBMScoreModel, LGBM_PARAMS),
         (NeuralScoreModel, {**NEURAL_PARAMS, "use_separate_models": False}),
-        (NeuralScoreModel, {**NEURAL_PARAMS, "use_separate_models": True})
+        (NeuralScoreModel, {**NEURAL_PARAMS, "use_separate_models": True}),
     ],
 )
 def test_can_be_deterministic(score_class, args):
@@ -113,7 +115,6 @@ def test_can_be_deterministic(score_class, args):
     hyperparam_min = 0.01
     hyperparam_max = y.std()
     sde = VESDE(hyperparam_min=hyperparam_min, hyperparam_max=hyperparam_max)
-    seed = 0
 
     # First fit
     score_model_a = score_class(**args)
@@ -138,12 +139,13 @@ def test_can_be_deterministic(score_class, args):
     msg = "The score model is not deterministic"
     assert np.allclose(scores_a, scores_b), msg
 
+
 @pytest.mark.parametrize(
     "score_class, args",
     [
         (LightGBMScoreModel, LGBM_PARAMS),
         (NeuralScoreModel, {**NEURAL_PARAMS, "use_separate_models": False}),
-        (NeuralScoreModel, {**NEURAL_PARAMS, "use_separate_models": True})
+        (NeuralScoreModel, {**NEURAL_PARAMS, "use_separate_models": True}),
     ],
 )
 def test_different_seeds_do_not_give_same_results(score_class, args):
