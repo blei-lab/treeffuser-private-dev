@@ -32,6 +32,8 @@ class ScalerMixedTypes:
         self._x_dim = None
         if scaler is None:
             self._scaler = StandardScaler()
+        else:
+            self._scaler = scaler
 
     def fit(self, X: Float[ndarray, "batch x_dim"], cat_idx: Optional[List[int]] = None):
         """

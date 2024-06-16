@@ -254,7 +254,7 @@ class VESDE(DiffusionSDE):
     def get_mean_std_pt_given_y0(
         self,
         y0: Float[ndarray, "batch y_dim"],
-        t: Float[ndarray, "batch 1"],
+        t: Union[Float[ndarray, "batch 1"], float],
     ) -> tuple[Float[ndarray, "batch y_dim"], Float[ndarray, "batch y_dim"]]:
         """
         The conditional distribution is Gaussian with:

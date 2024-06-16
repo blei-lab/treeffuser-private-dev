@@ -95,6 +95,7 @@ class BaseTabularDiffusion(BaseEstimator, abc.ABC):
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y, dtype=np.float32)
         self._y_dim = y.shape[1]
+
         x_transformed = self._x_scaler.fit_transform(
             X,
             cat_idx=cat_idx,
@@ -281,6 +282,7 @@ class BaseTabularDiffusion(BaseEstimator, abc.ABC):
         n_samples: int = 10,
         bandwidth: Union[float, Literal["scott", "silverman"]] = 1.0,
         verbose: bool = False,
+        seed: Optional[int] = None,
     ) -> float:
         """
         Compute the negative log likelihood, \\sum_{(y, x) in [y, X]} \\log p(y|x), where p
@@ -302,6 +304,8 @@ class BaseTabularDiffusion(BaseEstimator, abc.ABC):
             If bandwidth is a string, one of the  "scott" and "silverman" estimation methods. Default is 1.0.
         verbose : bool, optional
             If True, displays a progress bar for the sampling. Default is False.
+        seed : int, optional
+            Seed for the random number generator of the sampling. Default is None.
 
         Returns
         -------
@@ -314,7 +318,7 @@ class BaseTabularDiffusion(BaseEstimator, abc.ABC):
         if ode:
             return self._compute_nll_from_ode(X, y, verbose)
         else:
-            return self._compute_nll_from_sample(X, y, n_samples, bandwidth, verbose)
+            return self._compute_nll_from_sample(X, y, n_samples, bandwidth, verbose, seed)
 
     def _compute_nll_from_ode(
         self,
@@ -331,8 +335,9 @@ class BaseTabularDiffusion(BaseEstimator, abc.ABC):
         n_samples: int = 10,
         bandwidth: float | Literal["scott", "silverman"] = 1.0,
         verbose: bool = False,
+        seed: Optional[int] = None,
     ) -> float:
-        y_samples = self.sample(X=X, n_samples=n_samples, verbose=verbose)
+        y_samples = self.sample(X=X, n_samples=n_samples, verbose=verbose, seed=seed)
 
         def fit_and_evaluate_kde(y_train, y_test):
             kde = KernelDensity(bandwidth=bandwidth, algorithm="auto", kernel="gaussian")
