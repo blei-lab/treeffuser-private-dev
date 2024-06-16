@@ -17,7 +17,7 @@ class NNffuser(BaseTabularDiffusion):
 
     def __init__(
         self,
-        n_repeats: int = 10,
+        n_repeats: int = 100,
         eval_freq: int = 100,
         max_evals: int = 1000,
         early_stopping_rounds: int = 10,
