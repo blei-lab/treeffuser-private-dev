@@ -8,10 +8,6 @@ from typing import List
 from typing import Optional
 
 import numpy as np
-
-###################################################
-# Helper functions and classes
-###################################################
 import torch as t
 import torch.nn as nn
 from jaxtyping import Float
@@ -25,6 +21,9 @@ from treeffuser.scaler import ScalerMixedTypes
 from treeffuser.sde import DiffusionSDE
 
 
+###################################################
+# Helper functions and classes
+###################################################
 class EMA:
     def __init__(self, model, decay):
         self.model = model
@@ -113,7 +112,7 @@ class _CardLikeMLPModule(nn.Module):
         for i, layer in enumerate(self.layers):
             out = layer(out)
             if i < len(self.layers) - 1:
-                out += self.t_embeddings[i](t)
+                out *= self.t_embeddings[i](t)
                 out = nn.ReLU()(out)
         return out
 
@@ -138,7 +137,7 @@ def _train_model(
     optimizer: t.optim.Optimizer,
     early_stopping_rounds: int,
     max_evals: int,
-    decay: float,
+    ema_decay: float,
     eval_freq: int,
     verbose: int,
 ):
@@ -150,7 +149,7 @@ def _train_model(
     n_iters = 0
     eval_round_train_loss = 0.0
 
-    ema = EMA(model, decay=decay)
+    ema = EMA(model, decay=ema_decay)
 
     while True:
         for data, target in train_loader:
@@ -222,7 +221,7 @@ class _NNModel:
         batch_size: int,
         verbose: int,
         eval_freq: int,
-        decay: float,
+        ema_decay: float,
         early_stopping_rounds: int,
         max_evals: int,
         card_like: bool = False,
@@ -247,7 +246,7 @@ class _NNModel:
         eval_freq : int
             After how many iterations to perform the evaluation of the
             validation set.
-        decay : float
+        ema_decay : float
             The decay rate for the exponential moving average.
         early_stopping_rounds : int
             The number of evaluations without improvement before stopping.
@@ -273,7 +272,7 @@ class _NNModel:
         self._max_evals = max_evals
         self._weight_decay = weight_decay
         self._card_like = card_like
-        self._decay = decay
+        self._ema_decay = ema_decay
 
         self.x_scaler = None
         self.y_scaler = None
@@ -334,7 +333,7 @@ class _NNModel:
             max_evals=self._max_evals,
             eval_freq=self._eval_freq,
             verbose=self._verbose,
-            decay=self._decay,
+            ema_decay=self._ema_decay,
         )
         model.eval()
         self._model = model

@@ -26,7 +26,7 @@ class NNffuser(BaseTabularDiffusion):
         n_layers: int = 2,
         hidden_size: int = 10,
         batch_size: int = 32,
-        decay: float = 0.999,
+        ema_decay: float = 0.999,
         weight_decay: float = 0.0,
         n_jobs: int = -1,
         sde_name: str = "vesde",
@@ -52,7 +52,7 @@ class NNffuser(BaseTabularDiffusion):
             NN: Whether to use separate models for each dimension of the score. If `True`, a separate
             model is trained for each dimension of the score. If `False`, a single model is trained
             for all dimensions of the score.
-        decay : float
+        ema_decay : float
             NN: Decay rate for the exponential moving average of the parameters.
         learning_rate : float
             NN: Learning rate for the neural network.
@@ -104,7 +104,7 @@ class NNffuser(BaseTabularDiffusion):
         self.n_layers = n_layers
         self.hidden_size = hidden_size
         self.batch_size = batch_size
-        self.decay = decay
+        self.ema_decay = ema_decay
         self.weight_decay = weight_decay
         self.n_jobs = n_jobs
         self.sde_hyperparam_min = sde_hyperparam_min
@@ -134,7 +134,7 @@ class NNffuser(BaseTabularDiffusion):
             n_layers=self.n_layers,
             hidden_size=self.hidden_size,
             batch_size=self.batch_size,
-            decay=self.decay,
+            ema_decay=self.ema_decay,
             weight_decay=self.weight_decay,
             use_separate_models=self.use_separate_models,
             card_like=self.card_like,
