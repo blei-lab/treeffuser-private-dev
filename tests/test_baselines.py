@@ -56,10 +56,8 @@ def test_baselines_bimodal_linear_regression(card_like):
     model.fit(X_train, y_train)
     y_samples = model.sample(X_test, n_samples=n_samples, n_parallel=50, n_steps=30, seed=0)
 
-
     y_samples = y_samples.flatten()
     y_test = y_test.flatten()
-
 
     # Check that the samples are statistically indistinguishable from the data
     result = ks_2samp(y_samples, y_test)
@@ -122,6 +120,3 @@ def test_categorical():
     for cat_idx in [None, [1]]:
         model = NNffuser()
         model.fit(X=X, y=y, cat_idx=cat_idx)
-
-
-
